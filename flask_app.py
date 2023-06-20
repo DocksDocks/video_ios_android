@@ -1,12 +1,13 @@
+import io
+import json
 import os
 import zipfile
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, redirect, url_for
 from werkzeug.utils import secure_filename
 import ffmpeg
 import string
 import random
-from glob import glob
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
@@ -56,6 +57,25 @@ def convert_video_to_vp8(input_path, output_path, resolution):
     ffmpeg.input(input_path).output(output_filepath, vcodec='libvpx', s=resolution, an=None).run(overwrite_output=True)
     return output_filepath
 
+def delete_files(files, converted_files, zip_filepath):
+    temp_folder = app.config['TEMP_FOLDER']
+    converted_folder = app.config['OUTPUT_FOLDER']
+    
+    # Delete temporary files
+    for file in files:
+        print(file.filename)
+        file_path = os.path.join(temp_folder, file.filename)
+        os.remove(file_path)
+    
+    # Delete converted files
+    for converted_file in converted_files:
+        print(converted_file)
+        os.remove(converted_file)
+    
+    # Delete the generated zip file
+    if os.path.exists(zip_filepath):
+        print(zip_filepath)
+        os.remove(zip_filepath)
 
 @app.route('/', methods=['GET', 'POST'])
 def landing_page():
@@ -107,28 +127,19 @@ def landing_page():
         random_string = generate_random_string(6)
         zip_filename = f'converted_files_{timestamp}_{random_string}.zip'
         zip_filepath = os.path.join(app.config['OUTPUT_FOLDER'], zip_filename)
-
-        # Add converted files to the zip file
         with zipfile.ZipFile(zip_filepath, 'w') as zip_file:
             for converted_file in converted_files:
                 zip_file.write(converted_file, os.path.basename(converted_file))
-
-        # Delete the converted files after sending the zip file
-        @app.after_request
-        def delete_files(response):
-            converted_files = glob(os.path.join(app.config['OUTPUT_FOLDER'], '*.*'))
-            for file_path in converted_files:
-                os.remove(file_path)
-
-            zip_files = glob(os.path.join(app.config['OUTPUT_FOLDER'], '*.zip'))
-            for file_path in zip_files:
-                os.remove(file_path)
-
-            return response
-
-        return send_file(zip_filepath, as_attachment=True)
-
+        return_data = io.BytesIO()
+        with open(zip_filepath, 'rb') as fo:
+            return_data.write(fo.read())
+        return_data.seek(0)
+        delete_files(files,converted_files,zip_filepath)
+        # Redirect to download route with the zip file name as a parameter
+        return send_file(return_data, mimetype='application/zip', as_attachment=True, download_name="converted_files.zip")
     return render_template('index.html')
+
+from flask import after_this_request
 
 if __name__ == '__main__':
     app.run(debug=True)
