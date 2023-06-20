@@ -111,7 +111,7 @@ def landing_page():
         converted_files = []
         for filename in filenames:
             file_path = os.path.join(app.config['TEMP_FOLDER'], filename)
-            tablet_height = 800  # Adjust the height for tablets
+            tablet_height = 1200  # Adjust the height for tablets
             ipad_height = 1536  # Adjust the height for iPads
             tablet_resolution = get_scaled_resolution(file_path, tablet_height)
             ipad_resolution = get_scaled_resolution(file_path, ipad_height)
