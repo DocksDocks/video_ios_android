@@ -2,17 +2,13 @@ import os
 import zipfile
 from flask import Flask, render_template, request, send_file
 from werkzeug.utils import secure_filename
-from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime, timedelta
-import shutil
 import ffmpeg
 import string
 import random
-
+from glob import glob
+from datetime import datetime
 
 app = Flask(__name__)
-
-scheduler = BackgroundScheduler()
 
 # Configure upload folder and allowed extensions
 UPLOAD_FOLDER = 'uploads'
@@ -37,29 +33,6 @@ def generate_random_string(length):
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def delete_files(zip_filepath):
-    temp_folder = app.config['TEMP_FOLDER']
-    converted_folder = app.config['OUTPUT_FOLDER']
-    current_time = datetime.now()
-
-    # Delete temporary files
-    for filename in os.listdir(temp_folder):
-        file_path = os.path.join(temp_folder, filename)
-        modified_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-        if current_time - modified_time > timedelta(minutes=1):
-            os.remove(file_path)
-
-    # Delete converted files
-    for filename in os.listdir(converted_folder):
-        file_path = os.path.join(converted_folder, filename)
-        modified_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-        if current_time - modified_time > timedelta(minutes=1):
-            os.remove(file_path)
-
-    # Delete the generated zip file
-    if current_time - modified_time > timedelta(minutes=1) and os.path.exists(zip_filepath):
-        os.remove(zip_filepath)
 
 def get_scaled_resolution(input_path, target_height):
     probe = ffmpeg.probe(input_path)
@@ -128,26 +101,34 @@ def landing_page():
             if ipad_resolution:
                 converted_file = convert_video_to_h264(file_path, app.config['OUTPUT_FOLDER'], ipad_resolution)  # Convert to mp4 for iPad
                 converted_files.append(converted_file)
+
         # Create a zip file containing the converted files
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         random_string = generate_random_string(6)
         zip_filename = f'converted_files_{timestamp}_{random_string}.zip'
         zip_filepath = os.path.join(app.config['OUTPUT_FOLDER'], zip_filename)
-        # Schedule the file deletion job if it's not already scheduled
+
+        # Add converted files to the zip file
         with zipfile.ZipFile(zip_filepath, 'w') as zip_file:
             for converted_file in converted_files:
                 zip_file.write(converted_file, os.path.basename(converted_file))
-        # Send the zip file as a download
-        if not scheduler.get_jobs():
-            scheduler.add_job(delete_files, 'date', run_date=datetime.now() + timedelta(minutes=1), args=[zip_filepath])
-            scheduler.start()
+
+        # Delete the converted files after sending the zip file
+        @app.after_request
+        def delete_files(response):
+            converted_files = glob(os.path.join(app.config['OUTPUT_FOLDER'], '*.*'))
+            for file_path in converted_files:
+                os.remove(file_path)
+
+            zip_files = glob(os.path.join(app.config['OUTPUT_FOLDER'], '*.zip'))
+            for file_path in zip_files:
+                os.remove(file_path)
+
+            return response
+
         return send_file(zip_filepath, as_attachment=True)
 
     return render_template('index.html')
-
-
-
-# ...
 
 if __name__ == '__main__':
     app.run(debug=True)
