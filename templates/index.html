@@ -1,0 +1,36 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Converter</title>
+    <link href="{{ url_for('static', filename='styles.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="flex justify-center items-center min-h-screen">
+        <div class="container bg-gray-100 p-8 rounded-lg shadow-lg">
+            <h1 class="text-3xl mb-4 text-center">Video Converter</h1>
+            <form method="POST" enctype="multipart/form-data">
+                {% if error %}
+                    <p class="text-red-500">{{ error }}</p>
+                {% endif %}
+                <div class="mb-4 flex justify-center">
+                    <input type="file" name="files" accept=".mp4,.avi,.mov,.mkv" multiple class="hidden" id="file-input">
+                    <label for="file-input" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded cursor-pointer">
+                        Choose Files
+                    </label>
+                </div>
+                <div id="convert-button-container" class="flex justify-center hidden">
+                    <button type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                        Convert
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.getElementById('file-input').addEventListener('change', function() {
+            document.getElementById('convert-button-container').classList.remove('hidden');
+        });
+    </script>
+</body>
+</html>
